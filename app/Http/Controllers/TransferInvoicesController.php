@@ -14,29 +14,29 @@ class TransferInvoicesController extends Controller
 
             foreach ($companies as $company) {
                 Log::info("Iniciando proceso para la empresa: {$company}");
-                
+
                 // Iniciar sesión en SAP B1
                 $loginResponse = Http::withOptions(['verify' => false])->post(config('services.sap.host') . '/b1s/v1/Login', [
                     'CompanyDB' => $company,
                     'UserName'  => config('services.sap.username'),
                     'Password'  => config('services.sap.password'),
                 ]);
-                
+
                 if (!$loginResponse->successful()) {
                     Log::error("Error al iniciar sesión en SAP B1 para la empresa {$company}", ['response' => $loginResponse->json()]);
                     continue;
                 }
-                
+
                 $sessionId = $loginResponse->json()['SessionId'];
 
-                // Obtener notas de entrega en lotes de 10
+                // Obtener notas de entrega en lotes de 10 con el filtro adicional
                 $page = 1;
                 do {
                     Log::info("Mandando lote {$page} de 10 en la empresa: {$company}");
-                    
+
                     $response = Http::withOptions(['verify' => false])
                         ->withHeaders(['Cookie' => "B1SESSION={$sessionId}"])
-                        ->get(config('services.sap.host') . "/b1s/v1/DeliveryNotes?\$filter=DocumentStatus eq 'bost_Open'&\$top=10");
+                        ->get(config('services.sap.host') . "/b1s/v1/DeliveryNotes?\$filter=DocumentStatus eq 'bost_Open' and U_Auto_Auditoria eq 'N'&\$top=10");
 
                     if (!$response->successful()) {
                         Log::error("Error obteniendo notas de entrega para {$company}", ['response' => $response->json()]);
@@ -45,15 +45,15 @@ class TransferInvoicesController extends Controller
 
                     $deliveryNotes = $response->json()['value'] ?? [];
                     if (empty($deliveryNotes)) {
-                        Log::info("No hay más notas de entrega abiertas en {$company}.");
+                        Log::info("No hay más notas de entrega abiertas en {$company} con U_Auto_Auditoria = 'N'.");
                         break;
                     }
 
                     foreach ($deliveryNotes as $index => $deliveryNote) {
                         Log::info("Procesando nota de entrega " . ($index + 1) . " en el lote {$page} para {$company}");
-                        
+
                         $deliveryDocEntry = $deliveryNote['DocEntry'];
-                        
+
                         $invoiceData = [
                             'CardCode'      => $deliveryNote['CardCode'],
                             'DocDate'       => date('Y-m-d'),
@@ -73,7 +73,7 @@ class TransferInvoicesController extends Controller
                                 'BaseLine'      => $line['LineNum']
                             ];
                         }
-                        
+
                         $invoiceResponse = Http::withOptions(['verify' => false])
                             ->withHeaders(['Cookie' => "B1SESSION={$sessionId}"])
                             ->post(config('services.sap.host') . "/b1s/v1/Invoices", $invoiceData);
@@ -87,7 +87,7 @@ class TransferInvoicesController extends Controller
 
                     $page++;
                 } while (count($deliveryNotes) == 10);
-                
+
                 // Cerrar sesión en SAP B1
                 Http::withOptions(['verify' => false])
                     ->withHeaders(['Cookie' => "B1SESSION={$sessionId}"])

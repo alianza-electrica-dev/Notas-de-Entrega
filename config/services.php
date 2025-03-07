@@ -37,8 +37,6 @@ return [
         'static_companies' => [
             'SBO_Pruebas',
             'SBO_Alianza',
-            'Pruebas_FGE',
-            'Pruebas_FGM'
         ],
         'dynamic_companies' => explode(',', env('SAP_COMPANIES')),
     ],

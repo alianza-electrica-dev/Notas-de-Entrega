@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -58,7 +59,7 @@ class TransferInvoicesController extends Controller
                 try {
                     $response = Http::withOptions(['verify' => false])
                         ->withHeaders(['Cookie' => "B1SESSION={$sessionId}"])
-                        ->get(config('services.sap.host') . "/b1s/v1/DeliveryNotes?\$filter=DocumentStatus eq 'bost_Open' and U_Auto_Auditoria eq 'N'&\$top=11");
+                        ->get(config('services.sap.host') . "/b1s/v1/DeliveryNotes?\$filter=DocumentStatus eq 'bost_Open' and U_Auto_Auditoria eq 'N'&\$top=1");
 
                     if (!$response->successful()) {
                         Log::error("Error obteniendo notas de entrega para {$company}", ['response' => $response->json()]);

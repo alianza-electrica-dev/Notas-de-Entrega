@@ -34,27 +34,27 @@ class TransferInvoicesController extends Controller
     public function autoTransferInvoices()
     {
         file_put_contents(storage_path('logs/laravel.log'), '');
-        
+
         try {
             $companies = ['SBO_Alianza', 'SBO_FGE', 'SBO_MANUFACTURING'];
-            
+
             foreach ($companies as $company) {
                 Log::info("Iniciando proceso para la empresa: {$company}");
-                
+
                 $loginResponse = Http::withOptions(['verify' => false])->post(config('services.sap.host') . '/b1s/v1/Login', [
                     'CompanyDB' => $company,
                     'UserName'  => config('services.sap.username'),
                     'Password'  => config('services.sap.password'),
                 ]);
-                
+
                 if (!$loginResponse->successful()) {
                     Log::error("Error al iniciar sesión en SAP B1 para la empresa {$company}", ['response' => $loginResponse->json()]);
                     continue;
                 }
-                
+
                 $sessionId = $loginResponse->json()['SessionId'];
                 $totalEnviadas = 0;
-                
+
                 try {
                     $response = Http::withOptions(['verify' => false])
                         ->withHeaders(['Cookie' => "B1SESSION={$sessionId}"])
@@ -64,19 +64,19 @@ class TransferInvoicesController extends Controller
                         Log::error("Error obteniendo notas de entrega para {$company}", ['response' => $response->json()]);
                         continue;
                     }
-                    
+
                     $deliveryNotes = $response->json()['value'] ?? [];
-                    
+
                     if (empty($deliveryNotes)) {
                         Log::info("No hay notas de entrega abiertas en {$company} para procesar.");
                         continue;
                     }
-                    
+
                     foreach ($deliveryNotes as $deliveryNote) {
                         $deliveryDocEntry = $deliveryNote['DocEntry'];
                         $deliverySeries = $deliveryNote['Series'];
                         $invoiceSeries = $this->getInvoiceSeries($company, $deliverySeries) ?? $deliverySeries;
-                        
+
                         $invoiceData = [
                             'CardCode'      => $deliveryNote['CardCode'],
                             'DocDate'       => date('Y-m-d'),
@@ -119,7 +119,6 @@ class TransferInvoicesController extends Controller
 
                     // Log final con el total de facturas enviadas por empresa
                     Log::info("Proceso finalizado en {$company}. Total facturas enviadas: {$totalEnviadas}");
-
                 } catch (\Exception $e) {
                     Log::error("Excepción en el procesamiento de notas para {$company}: " . $e->getMessage());
                 } finally {
